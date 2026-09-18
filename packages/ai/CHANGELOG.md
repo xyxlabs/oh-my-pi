@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject judgment responses from a different pinned model or an unresolved rolling alias.
+
 ## [18.2.6] - 2026-09-18
 
 ### Fixed

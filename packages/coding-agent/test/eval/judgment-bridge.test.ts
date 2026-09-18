@@ -136,7 +136,7 @@ describe("eval judge() bridge", () => {
 			asGlobalFetch(async (_url, init) => {
 				body = JSON.parse(String(init?.body));
 				return Response.json({
-					model: "jev-latest",
+					model: "jev-1.13.0",
 					answers: { tests: { type: "noul", noul: 0.83 } },
 					usage: { input_tokens: 10, output_tokens: 1 },
 				});

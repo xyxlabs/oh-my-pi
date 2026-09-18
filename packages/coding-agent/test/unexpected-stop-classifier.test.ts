@@ -109,6 +109,7 @@ describe("classifyUnexpectedStop", () => {
 		const model = { ...baseModel, reasoning: false };
 		const settings = {
 			get(path: string) {
+				if (path === "disabledProviders") return [];
 				if (path === "providers.unexpectedStopModel") return "online";
 				return undefined;
 			},
@@ -151,6 +152,7 @@ describe("classifyUnexpectedStop", () => {
 	it("routes to TypeSafe when a credential exists and thresholds the yes-probability", async () => {
 		const settings = {
 			get(path: string) {
+				if (path === "disabledProviders") return [];
 				if (path === "providers.unexpectedStopModel") return "online";
 				return undefined;
 			},
@@ -172,7 +174,7 @@ describe("classifyUnexpectedStop", () => {
 				expect(body.questions.stopped.type).toBe("noul");
 				expect(new Headers(init?.headers).get("authorization")).toBe("Bearer ts-key");
 				return Response.json({
-					model: "jev-latest",
+					model: "jev-1.13.0",
 					answers: { stopped: { type: "noul", noul: 0.31 } },
 					usage: { input_tokens: 10, output_tokens: 1 },
 				});
@@ -193,6 +195,7 @@ describe("classifyUnexpectedStop", () => {
 	it("returns undefined instead of throwing when every judge fails", async () => {
 		const settings = {
 			get(path: string) {
+				if (path === "disabledProviders") return [];
 				if (path === "providers.unexpectedStopModel") return "online";
 				return undefined;
 			},

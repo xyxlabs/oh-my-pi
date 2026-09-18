@@ -79,7 +79,7 @@ export interface ResolvedJudge extends Judge {
 /** Whether typed judgments currently go to TypeSafe rather than a chat/local model. */
 export function usesTypeSafeJudge(settings: Settings, registry: ModelRegistry): boolean {
 	const mode = settings.get("providers.judgmentProvider");
-	if (mode === "llm") return false;
+	if (mode === "llm" || settings.get("disabledProviders").includes(TYPESAFE_PROVIDER)) return false;
 	return mode === "typesafe" || registry.authStorage.hasAuth(TYPESAFE_PROVIDER);
 }
 
@@ -101,6 +101,8 @@ export function resolveJudge(deps: JudgeDeps): ResolvedJudge {
 		kind: "typesafe",
 		label: typesafe.label,
 		async judge(request, options) {
+			if (deps.settings.get("disabledProviders").includes(TYPESAFE_PROVIDER))
+				throw new AIError.ConfigurationError("TypeSafe provider is disabled");
 			try {
 				const result = await typesafe.judge(request, options);
 				deps.onUsage?.({

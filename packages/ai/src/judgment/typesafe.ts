@@ -29,6 +29,18 @@ export const TYPESAFE_PROVIDER = "typesafe";
 export const TYPESAFE_DEFAULT_BASE_URL = "https://api.typesafe.ai";
 export const TYPESAFE_DEFAULT_MODEL = "jev-latest";
 
+export function isTypeSafeModelAlias(model: string): boolean {
+	return model === "jev-latest" || model === "jev-preview";
+}
+
+/** Pins require exact identity; aliases require an auditable concrete Jev version. */
+export function typeSafeModelMatches(requested: string, actual: unknown): actual is string {
+	if (typeof actual !== "string" || actual.length === 0) return false;
+	return isTypeSafeModelAlias(requested)
+		? /^jev-[0-9]+[.][0-9]+[.][0-9]+(?:[-+][a-zA-Z0-9.-]+)?$/.test(actual)
+		: actual === requested;
+}
+
 /** `TYPESAFE_BASE_URL` when set, else the public API root; trailing slashes stripped. */
 export function typesafeBaseUrl(): string {
 	return ($env.TYPESAFE_BASE_URL?.trim() || TYPESAFE_DEFAULT_BASE_URL).replace(/\/+$/, "");
@@ -100,6 +112,12 @@ export class TypeSafeJudge implements Judge {
 	async judge<Q extends Questions>(request: JudgmentRequest<Q>, options?: JudgeOptions): Promise<JudgmentResult<Q>> {
 		const body = JSON.stringify({ state: request.state, model: this.model, questions: request.questions });
 		const response = await this.#request<SystemOneResponse>("POST", "/v1/systemone", body, options?.signal);
+		if (!typeSafeModelMatches(this.model, response.model)) {
+			throw new AIError.ProviderResponseError("TypeSafe response model does not match the requested model", {
+				provider: TYPESAFE_PROVIDER,
+				kind: "envelope",
+			});
+		}
 		for (const id in request.questions) {
 			const answer = response.answers[id];
 			if (answer === undefined || answer.type !== request.questions[id].type) {

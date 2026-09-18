@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Honor disabled TypeSafe providers for new and already-resolved judgments.
+
 ## [18.2.6] - 2026-09-18
 
 ### Fixed

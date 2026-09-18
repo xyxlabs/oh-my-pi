@@ -127,6 +127,7 @@ describe("auto thinking classifier helpers", () => {
 		const classifierModel = { ...baseModel, reasoning: false };
 		const settings = {
 			get(path: string) {
+				if (path === "disabledProviders") return [];
 				if (path === "providers.autoThinkingModel") return "online";
 				return undefined;
 			},
@@ -172,6 +173,7 @@ describe("auto thinking classifier helpers", () => {
 		if (!classifierModel) throw new Error("Expected bundled Claude Sonnet 4.6 model");
 		const settings = {
 			get(path: string) {
+				if (path === "disabledProviders") return [];
 				if (path === "providers.autoThinkingModel") return "online";
 				return path === "providers.autoThinkingMaxEffort" ? maxEffort : undefined;
 			},
@@ -359,7 +361,7 @@ describe("auto thinking classifier helpers", () => {
 			asGlobalFetch(async (_url, init) => {
 				requested = JSON.parse(String(init?.body));
 				return Response.json({
-					model: "jev-latest",
+					model: "jev-1.13.0",
 					answers: {
 						level: {
 							type: "choice",
@@ -388,7 +390,7 @@ describe("auto thinking classifier helpers", () => {
 		expect(Object.keys(requested?.questions.level.criteria ?? {})).toEqual(["low", "medium", "high", "xhigh"]);
 		expect(requested?.state).toEqual({ request: "add validation around the retry path" });
 		expect(onUsage).toHaveBeenCalledWith(
-			expect.objectContaining({ role: "typesafe", provider: "typesafe", model: "jev-latest", stopReason: "stop" }),
+			expect.objectContaining({ role: "typesafe", provider: "typesafe", model: "jev-1.13.0", stopReason: "stop" }),
 		);
 	});
 
@@ -396,6 +398,7 @@ describe("auto thinking classifier helpers", () => {
 		const target = buildLadderModel("mock-max", MAX_LADDER);
 		const settings = {
 			get(path: string) {
+				if (path === "disabledProviders") return [];
 				if (path === "providers.autoThinkingModel") return "online";
 				return undefined;
 			},
@@ -437,6 +440,7 @@ describe("auto thinking classifier helpers", () => {
 		const target = buildLadderModel("session-judge", MAX_LADDER);
 		const settings = {
 			get(path: string) {
+				if (path === "disabledProviders") return [];
 				if (path === "providers.autoThinkingModel") return "online";
 				return undefined;
 			},
@@ -477,6 +481,7 @@ describe("auto thinking classifier helpers", () => {
 		if (!classifierModel) throw new Error("Expected bundled Claude Sonnet 4.6 model");
 		const settings = {
 			get(path: string) {
+				if (path === "disabledProviders") return [];
 				if (path === "providers.judgmentProvider") return "llm";
 				if (path === "providers.autoThinkingModel") return "online";
 				return undefined;
@@ -665,6 +670,7 @@ describe("auto thinking classifier helpers", () => {
 		const target = buildLadderModel("mock-max", MAX_LADDER);
 		const settings = {
 			get(path: string) {
+				if (path === "disabledProviders") return [];
 				if (path === "providers.autoThinkingModel") return "online";
 				if (path === "providers.autoThinkingMaxEffort") return "xhigh";
 				if (path === "retry.modelFallback") return enabled;
@@ -715,6 +721,7 @@ describe("auto thinking classifier helpers", () => {
 		const target = buildLadderModel("mock-max", MAX_LADDER);
 		const settings = {
 			get(path: string) {
+				if (path === "disabledProviders") return [];
 				if (path === "providers.autoThinkingModel") return "online";
 				if (path === "providers.autoThinkingMaxEffort") return "xhigh";
 				if (path === "retry.modelFallback") return true;
@@ -755,6 +762,7 @@ describe("auto thinking classifier helpers", () => {
 		const target = buildLadderModel("mock-max", MAX_LADDER);
 		const settings = {
 			get(path: string) {
+				if (path === "disabledProviders") return [];
 				if (path === "providers.autoThinkingModel") return "online";
 				if (path === "providers.autoThinkingMaxEffort") return "xhigh";
 				if (path === "retry.modelFallback") return true;

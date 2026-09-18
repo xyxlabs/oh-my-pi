@@ -188,10 +188,10 @@ describe("TypeSafeJudge", () => {
 		questions: { urgent: { type: "noul", instructions: "Does this convey urgency?" } },
 	} as const;
 
-	function answered(status = 200) {
+	function answered(status = 200, model = "jev-1.13.0") {
 		return Response.json(
 			{
-				model: "jev-latest",
+				model,
 				answers: { urgent: { type: "noul", noul: 0.92 } },
 				usage: { input_tokens: 5, output_tokens: 1 },
 			},
@@ -207,7 +207,7 @@ describe("TypeSafeJudge", () => {
 			model: "jev-test",
 			fetch: async (url, init) => {
 				calls.push({ url: String(url), init });
-				return answered();
+				return answered(200, "jev-test");
 			},
 		});
 
@@ -222,7 +222,7 @@ describe("TypeSafeJudge", () => {
 			questions: request.questions,
 		});
 		expect(result.answers.urgent.noul).toBe(0.92);
-		expect(result.model).toBe("jev-latest");
+		expect(result.model).toBe("jev-test");
 		expect(result.usage.input).toBe(5);
 		expect(result.usage.totalTokens).toBe(6);
 	});
@@ -262,7 +262,7 @@ describe("TypeSafeJudge", () => {
 		const mismatched = new TypeSafeJudge({
 			apiKey: "k",
 			fetch: async () =>
-				Response.json({ model: "jev-latest", answers: { urgent: { type: "choice", choice: "x" } }, usage: {} }),
+				Response.json({ model: "jev-1.13.0", answers: { urgent: { type: "choice", choice: "x" } }, usage: {} }),
 		});
 		await expect(mismatched.judge(request)).rejects.toThrow(/missing a "noul" answer/);
 	});
