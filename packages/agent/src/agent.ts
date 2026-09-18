@@ -438,6 +438,16 @@ export class Agent {
 	#suggestFallbackToolNames?: () => Iterable<string>;
 	#intentTracing: boolean;
 	#pruneToolDescriptions: boolean;
+	#contextToolsCache?: {
+		source: AgentTool[];
+		model: Model | undefined;
+		sourceRevision: number;
+		metadataRevision: number;
+		dialect: Dialect | undefined;
+		injectIntent: boolean;
+		pruneDescriptions: boolean;
+		tools: NonNullable<Context["tools"]>;
+	};
 	#dialect?: Dialect;
 	#abortOnFabricatedToolResult?: boolean;
 	#getToolChoice?: () => ToolChoiceDirective | undefined;
@@ -801,6 +811,40 @@ export class Agent {
 			names.add(tool.name);
 		}
 		return merged ?? this.#state.tools;
+	}
+
+	/** Normalized native tool metadata for synchronous preflight estimates, before provider-specific transforms. */
+	getContextTools(sourceRevision = 0, metadataRevision = 0): NonNullable<Context["tools"]> {
+		const model = this.#state.model;
+		const source = model ? this.#toolsForModel(model) : this.#state.tools;
+		const dialect = this.#dialect ?? resolveOwnedDialectFromEnv(Bun.env.PI_DIALECT);
+		const injectIntent = this.#intentTracing && Bun.env.PI_NO_INTENT !== "1";
+		const pruneDescriptions = this.#pruneToolDescriptions;
+		const cached = this.#contextToolsCache;
+		if (
+			cached &&
+			cached.source === source &&
+			cached.model === model &&
+			cached.sourceRevision === sourceRevision &&
+			cached.metadataRevision === metadataRevision &&
+			cached.dialect === dialect &&
+			cached.injectIntent === injectIntent &&
+			cached.pruneDescriptions === pruneDescriptions
+		) {
+			return cached.tools;
+		}
+		const tools = dialect ? [] : (normalizeTools(source, { injectIntent, pruneDescriptions }) ?? []);
+		this.#contextToolsCache = {
+			source,
+			model,
+			sourceRevision,
+			metadataRevision,
+			dialect,
+			injectIntent,
+			pruneDescriptions,
+			tools,
+		};
+		return tools;
 	}
 
 	/**

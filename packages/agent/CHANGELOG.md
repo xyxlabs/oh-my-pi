@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Expose normalized tool metadata for accurate preflight context accounting.
+
 ## [18.2.5] - 2026-09-17
 
 ### Fixed

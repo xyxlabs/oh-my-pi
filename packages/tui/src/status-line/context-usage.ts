@@ -135,6 +135,7 @@ export function computeCompactionBoundaries(
 export interface NonMessageTokenSource {
 	readonly systemPrompt?: readonly string[];
 	readonly agent?: {
+		getContextTools?(sourceRevision?: number, metadataRevision?: number): readonly ContextTool[];
 		readonly state?: {
 			readonly tools?: readonly ContextTool[];
 		};
@@ -311,8 +312,9 @@ function nonMessageTokenCacheEntry(
 ): NonMessageTokenCache {
 	const cachedSession: CachedNonMessageTokenSource = session;
 	const systemPromptRef = session.systemPrompt ?? EMPTY_STRING_PARTS;
-	const toolsRef = session.agent?.state?.tools ?? EMPTY_TOOLS;
-	const toolsRevision = getToolSchemaMetadataRevision(toolsRef);
+	const rawTools = session.agent?.state?.tools ?? EMPTY_TOOLS;
+	const toolsRevision = getToolSchemaMetadataRevision(rawTools);
+	const toolsRef = session.agent?.getContextTools?.(sourceRevision, toolsRevision) ?? rawTools;
 	const skillsRef = session.skills ?? EMPTY_SKILLS;
 	let entry = cachedSession[NON_MESSAGE_TOKEN_CACHE];
 	if (
@@ -349,7 +351,7 @@ export function computeNonMessageTokens(
 	const entry = nonMessageTokenCacheEntry(session, tokenizer, sourceRevision);
 	if (entry.tokens !== undefined) return entry.tokens;
 	const systemPromptParts = session.systemPrompt ?? EMPTY_STRING_PARTS;
-	const tools = session.agent?.state?.tools ?? EMPTY_TOOLS;
+	const tools = entry.toolsRef;
 	const tokens =
 		tokenizer.countTokens(Array.from(systemPromptParts, part => part ?? "")) +
 		estimateToolSchemaTokens(tools, tokenizer, sourceRevision);
@@ -379,7 +381,7 @@ export function computeNonMessageBreakdown(
 	const tools = session.agent?.state?.tools ?? EMPTY_TOOLS;
 	const skillsTokens =
 		skillful === false ? 0 : estimateSkillsTokens(renderedSkills(session.skills ?? EMPTY_SKILLS, tools), tokenizer);
-	const toolsTokens = estimateToolSchemaTokens(tools, tokenizer, sourceRevision);
+	const toolsTokens = estimateToolSchemaTokens(entry.toolsRef, tokenizer, sourceRevision);
 	const systemPromptParts = session.systemPrompt ?? EMPTY_STRING_PARTS;
 	const systemContextTokens = tokenizer.countTokens(Array.from(systemPromptParts.slice(1), part => part ?? ""));
 	const systemPromptTokens = Math.max(0, tokenizer.countTokens(systemPromptParts[0] ?? "") - skillsTokens);

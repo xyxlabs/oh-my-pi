@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Count provider-normalized tool schemas without double-counting inlined descriptions.
+
 ## [18.2.5] - 2026-09-17
 
 ### Added
