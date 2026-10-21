@@ -241,7 +241,7 @@ role aliases, including `@default`.
 
 | Value | Behavior |
 | --- | --- |
-| `off` (default) | `model` is hidden from the task schema and prompts. A task call that still passes it has it dropped by the schema and runs on the agent's own model; a call that bypasses the schema with one fails preflight. Eval `agent()`/`workpool()` reject it. |
+| `off` (default) | `model` is hidden from the task schema and prompts. A task call that still passes it fails preflight; shared argument repair of another field in the same call (e.g. a non-string `solutionSpace`, `name`, or `context`) can drop a `tasks[]` item's `model` before that check ([#12871](https://github.com/can1357/oh-my-pi/pull/12871) proposes keeping it). Eval `agent()`/`workpool()` reject it. |
 | `unpinned` | Accepted only for agents that are not pinned by a frontmatter `model`. A pinned model is any frontmatter `model` other than an absent or parent-inheriting spelling (a bare `@default`, `*`, or `pi/default`, or a selection that expands to nothing, such as `@task` while `modelRoles.task` is unset). This is decided from the configuration alone, not by comparing against the model the parent is running. The bundled `task` agent (`@task`) counts as unpinned until `modelRoles.task` is set; `scout` (`@smol`) and `reviewer` (`@slow`) are pinned. |
 | `on` | Accepted for every agent, including ones with a frontmatter model. |
 | `eval` | Accepted through eval `agent()` and `workpool()` for every agent, including pinned specialists. Ordinary task items behave as `off`. The same approval, allowlist, effort and dispatch checks apply. |

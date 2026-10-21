@@ -10,7 +10,8 @@ import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 // Contract: the task tool's wire shape is flat `{ name?, agent?, task, isolated? }`
 // (batch: `{ context, tasks[] }` of the same items). `agent` defaults to the
 // schema's spawn-policy default, and unknown keys sent by stale callers (`role`,
-// `description`) are stripped by the schema's `+: "delete"` — never rejected.
+// `description`) are stripped by the schema's `+: "delete"` — never rejected. A batch
+// item's undeclared `model` is kept instead, so preflight can reject it.
 
 describe("oneLineLabel", () => {
 	it("returns short text unchanged", () => {
@@ -131,13 +132,22 @@ describe("task wire schema", () => {
 		expect(items[1]?.agent).toBe("reviewer");
 	});
 
-	it("deletes stale keys from batch items", () => {
-		const batch = getTaskSchema({ isolationEnabled: false, batchEnabled: true });
+	it.each([
+		["fast path", { isolationEnabled: false, batchEnabled: true }],
+		["isolated fast path", { isolationEnabled: true, batchEnabled: true }],
+		["custom default agent", { isolationEnabled: false, batchEnabled: true, defaultAgent: "scout" }],
+		["isolated custom default agent", { isolationEnabled: true, batchEnabled: true, defaultAgent: "scout" }],
+	] as const)("deletes stale keys from batch items except model (%s)", (_path, options) => {
+		const batch = getTaskSchema(options);
 		const items = parsedItems(
-			batch({ context: "ctx", tasks: [{ task: "x", solutionSpace: "c", role: "DB migration specialist" }] }),
+			batch({
+				context: "ctx",
+				tasks: [{ task: "x", solutionSpace: "c", role: "DB migration specialist", model: "p/m" }],
+			}),
 		);
 		const item = items[0] ?? {};
 		expect("role" in item).toBe(false);
+		expect(item.model).toBe("p/m");
 		expect(item.task).toBe("x");
 	});
 });

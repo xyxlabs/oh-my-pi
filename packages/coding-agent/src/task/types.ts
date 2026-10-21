@@ -45,7 +45,24 @@ const outputSchemaInputSchema = type("object | boolean | string | null");
 // Coarse per-spawn thinking effort; must stay in sync with TASK_EFFORTS in ../thinking.
 const effortRule = '"lo" | "med" | "hi"' as const;
 
-export const taskItemSchema = type({
+/**
+ * Batch item schema: strips undeclared keys like `"+": "delete"` but keeps an undeclared
+ * `model`, so preflight rejects it when `task.perCallModel` does not allow it instead of the
+ * item silently running on the agent's own model (#7982). Shared argument validation can still
+ * drop it first when it repairs another field in the same call (#12871 proposes keeping such
+ * keys). Root keys need no such pass because shared argument validation keeps unknown root keys
+ * for this tool. The wire schema is identical to the `"+": "delete"` form.
+ */
+function keepModelItem(fields: Record<string, unknown>): BaseType {
+	const strip = type.raw({ ...fields, "+": "delete" });
+	return type.raw({ ...fields, "+": "ignore" }).pipe((value: Record<string, unknown>) => {
+		const stripped = strip(value) as Record<string, unknown>;
+		if (Object.hasOwn(value, "model")) stripped.model = value.model;
+		return stripped;
+	});
+}
+
+export const taskItemSchema = keepModelItem({
 	"name?": "string",
 	agent: "string = 'task'",
 	task: "string",
@@ -53,9 +70,8 @@ export const taskItemSchema = type({
 	"outputSchema?": outputSchemaInputSchema,
 	"schemaMode?": '"permissive" | "strict"',
 	"tools?": "string[]",
-	"+": "delete",
 });
-const taskItemSchemaIsolated = type({
+const taskItemSchemaIsolated = keepModelItem({
 	"name?": "string",
 	agent: "string = 'task'",
 	task: "string",
@@ -64,7 +80,6 @@ const taskItemSchemaIsolated = type({
 	"schemaMode?": '"permissive" | "strict"',
 	"tools?": "string[]",
 	"isolated?": "boolean",
-	"+": "delete",
 });
 
 export const taskSchema = type({
@@ -140,7 +155,7 @@ function createTaskSchema(options: {
 	const seanceFields = { ...modelField, ...options.seanceFields };
 	if (options.batchEnabled) {
 		if (options.isolationEnabled) {
-			const item = type.raw({
+			const item = keepModelItem({
 				"name?": "string",
 				agent,
 				task: "string",
@@ -150,7 +165,6 @@ function createTaskSchema(options: {
 				...toolsField,
 				...seanceFields,
 				"isolated?": "boolean",
-				"+": "delete",
 			});
 			return type.raw({
 				context: "string",
@@ -158,7 +172,7 @@ function createTaskSchema(options: {
 				"+": "delete",
 			});
 		}
-		const item = type.raw({
+		const item = keepModelItem({
 			"name?": "string",
 			agent,
 			task: "string",
@@ -167,7 +181,6 @@ function createTaskSchema(options: {
 			...schemaFields,
 			...toolsField,
 			...seanceFields,
-			"+": "delete",
 		});
 		return type.raw({
 			context: "string",

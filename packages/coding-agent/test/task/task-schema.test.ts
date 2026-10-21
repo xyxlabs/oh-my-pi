@@ -324,18 +324,6 @@ describe("per-call model schema boundaries", () => {
 		vi.restoreAllMocks();
 	});
 
-	it.each([false, true])("eval mode drops ordinary task model input with batch=%s", async batch => {
-		vi.spyOn(discoveryModule, "discoverAgents").mockResolvedValue({ agents: [], projectAgentsDir: null });
-		const tool = await TaskTool.create(
-			createSession({ settings: { "task.perCallModel": "eval", "task.batch": batch } }),
-		);
-		const item = { task: "Do work", solutionSpace: "c", model: "p/requested" };
-		const parsed = tool.parameters(batch ? { context: "shared", tasks: [item] } : item);
-		expect(parsed instanceof type.errors).toBe(false);
-		expect(parsed).toHaveProperty(batch ? "tasks.0.task" : "task", "Do work");
-		expect(parsed).not.toHaveProperty(batch ? "tasks.0.model" : "model");
-	});
-
 	it("drops `model` from a dynamically built schema while task.perCallModel is off", () => {
 		const params = { task: "Do work", solutionSpace: "c", model: "p/requested" };
 		const build = (perCallModel: boolean) =>
