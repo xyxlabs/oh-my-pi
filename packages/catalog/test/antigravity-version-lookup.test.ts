@@ -1,8 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, setSystemTime } from "bun:test";
 import type { FetchImpl } from "@oh-my-pi/pi-catalog/types";
-import { ensureAntigravityVersion, getAntigravityPlatform } from "@oh-my-pi/pi-catalog/wire/gemini-headers";
+import {
+	ensureAntigravityVersion,
+	getAntigravityPlatform,
+	getAntigravityVersion,
+} from "@oh-my-pi/pi-catalog/wire/gemini-headers";
 
 const RETRY_WINDOW_MS = 10 * 60_000;
+const RECHECK_WINDOW_MS = 60 * 60_000;
 // The lookup state is process-wide; every test starts on a fresh clock past any
 // backoff an earlier test (or file) left behind.
 let clock = Date.now();
@@ -20,10 +25,19 @@ function countingFetch(respond: () => Promise<Response>): { fetcher: FetchImpl; 
 	return { fetcher, calls: () => calls };
 }
 
+function manifest(version: string): Response {
+	return new Response(`version: ${version}\npath: Antigravity-${version}.zip\n`);
+}
+
+function advance(ms: number): void {
+	clock += ms;
+	setSystemTime(new Date(clock));
+}
+
 describe("ensureAntigravityVersion", () => {
 	beforeEach(() => {
 		delete process.env.PI_AI_ANTIGRAVITY_VERSION;
-		clock += RETRY_WINDOW_MS * 10;
+		clock += RECHECK_WINDOW_MS * 2;
 		setSystemTime(new Date(clock));
 	});
 
@@ -64,6 +78,50 @@ describe("ensureAntigravityVersion", () => {
 
 		release.resolve(new Response("unavailable", { status: 503 }));
 		await concurrent;
+		expect(calls()).toBe(1);
+	});
+
+	it("does not refetch a discovered version inside the re-check window", async () => {
+		const { fetcher, calls } = countingFetch(async () => manifest("9.1.0"));
+
+		await ensureAntigravityVersion(fetcher);
+		expect(getAntigravityVersion()).toBe("9.1.0");
+		advance(RECHECK_WINDOW_MS - 1);
+		await ensureAntigravityVersion(fetcher);
+		expect(calls()).toBe(1);
+	});
+
+	it("re-checks the manifest after the window and adopts a newer release", async () => {
+		let version = "9.2.0";
+		const { fetcher, calls } = countingFetch(async () => manifest(version));
+
+		await ensureAntigravityVersion(fetcher);
+		expect(getAntigravityVersion()).toBe("9.2.0");
+
+		version = "9.3.0";
+		advance(RECHECK_WINDOW_MS + 1);
+		await ensureAntigravityVersion(fetcher);
+		expect(calls()).toBe(2);
+		expect(getAntigravityVersion()).toBe("9.3.0");
+	});
+
+	it("keeps the discovered version while a re-check is in flight and after it fails", async () => {
+		await ensureAntigravityVersion(countingFetch(async () => manifest("9.4.0")).fetcher);
+		expect(getAntigravityVersion()).toBe("9.4.0");
+
+		advance(RECHECK_WINDOW_MS + 1);
+		const release = Promise.withResolvers<Response>();
+		const { fetcher, calls } = countingFetch(() => release.promise);
+		const recheck = ensureAntigravityVersion(fetcher);
+		expect(calls()).toBe(1);
+		expect(getAntigravityVersion()).toBe("9.4.0");
+
+		release.resolve(new Response("unavailable", { status: 503 }));
+		await recheck;
+		expect(getAntigravityVersion()).toBe("9.4.0");
+
+		// A failed re-check backs off like any failed lookup.
+		await ensureAntigravityVersion(fetcher);
 		expect(calls()).toBe(1);
 	});
 });

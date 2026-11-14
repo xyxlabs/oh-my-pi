@@ -43,8 +43,11 @@ const ANTIGRAVITY_VERSION_MANIFEST_URL =
 const ANTIGRAVITY_VERSION_FETCH_TIMEOUT_MS = 5_000;
 /** Failed manifest lookups are not retried before this delay, so request paths never stall per call. */
 const ANTIGRAVITY_VERSION_RETRY_MS = 10 * 60_000;
+/** A discovered version is re-checked after this delay, so a release that lands mid-session is picked up. */
+const ANTIGRAVITY_VERSION_TTL_MS = 60 * 60_000;
 
 let discoveredAntigravityVersion: string | null = null;
+let antigravityVersionDiscoveredAt: number | undefined;
 let antigravityVersionFetch: Promise<void> | null = null;
 let antigravityVersionFailedAt: number | undefined;
 
@@ -69,15 +72,25 @@ export function parseAntigravityManifestVersion(yamlText: string): string | null
 
 /**
  * Resolves the latest Antigravity release from the official update manifest.
- * Success is cached for the process lifetime; failures are silent (the pinned
- * fallback stays valid) and suppress further lookups for
- * `ANTIGRAVITY_VERSION_RETRY_MS`. Skipped entirely when PI_AI_ANTIGRAVITY_VERSION is set.
+ * A discovered version is re-checked once `ANTIGRAVITY_VERSION_TTL_MS` has
+ * passed rather than held for the process lifetime: sessions run for days, and
+ * a release that lands mid-session is exactly what this lookup exists for. The
+ * last discovered version stays in use while a re-check is in flight and when it
+ * fails. Failures are silent (the last discovered version or pinned fallback
+ * stays valid) and suppress further lookups for `ANTIGRAVITY_VERSION_RETRY_MS`.
+ * Skipped entirely when PI_AI_ANTIGRAVITY_VERSION is set.
  *
  * The lookup is shared by concurrent callers, so it is bounded only by its own
  * timeout; `signal` ends this caller's wait without cancelling the lookup.
  */
 export function ensureAntigravityVersion(fetcher: FetchImpl = fetch, signal?: AbortSignal): Promise<void> {
-	if (process.env.PI_AI_ANTIGRAVITY_VERSION || discoveredAntigravityVersion) return Promise.resolve();
+	if (process.env.PI_AI_ANTIGRAVITY_VERSION) return Promise.resolve();
+	if (
+		antigravityVersionDiscoveredAt !== undefined &&
+		Date.now() - antigravityVersionDiscoveredAt < ANTIGRAVITY_VERSION_TTL_MS
+	) {
+		return Promise.resolve();
+	}
 	if (!antigravityVersionFetch) {
 		if (
 			antigravityVersionFailedAt !== undefined &&
@@ -86,19 +99,24 @@ export function ensureAntigravityVersion(fetcher: FetchImpl = fetch, signal?: Ab
 			return Promise.resolve();
 		}
 		antigravityVersionFetch = (async () => {
+			let version: string | null = null;
 			try {
 				const response = await fetcher(ANTIGRAVITY_VERSION_MANIFEST_URL, {
 					headers: { "Cache-Control": "no-cache", "User-Agent": "electron-builder" },
 					signal: AbortSignal.timeout(ANTIGRAVITY_VERSION_FETCH_TIMEOUT_MS),
 				});
-				if (response.ok) {
-					discoveredAntigravityVersion = parseAntigravityManifestVersion(await response.text());
-				}
+				if (response.ok) version = parseAntigravityManifestVersion(await response.text());
 			} catch {
-				// Silent: the pinned fallback remains valid when version discovery fails.
+				// Silent: the last discovered version or pinned fallback remains valid.
 			} finally {
 				antigravityVersionFetch = null;
-				if (!discoveredAntigravityVersion) antigravityVersionFailedAt = Date.now();
+				if (version) {
+					discoveredAntigravityVersion = version;
+					antigravityVersionDiscoveredAt = Date.now();
+					antigravityVersionFailedAt = undefined;
+				} else {
+					antigravityVersionFailedAt = Date.now();
+				}
 			}
 		})();
 	}
